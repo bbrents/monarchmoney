@@ -286,6 +286,51 @@ class TestMonarchMoney(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result["categoryGroups"]), 2, "Expected 2 category groups")
         self.assertEqual(len(result["goalsV2"]), 1, "Expected 1 goal")
 
+    @patch.object(Client, "execute_async")
+    async def test_get_household_members(self, mock_execute_async):
+        """
+        Test the get_household_members method.
+        """
+        mock_execute_async.return_value = {
+            "myHousehold": {
+                "users": [
+                    {
+                        "id": "user-1",
+                        "name": "Alex",
+                        "displayName": "Alex",
+                        "householdRole": "OWNER",
+                    },
+                    {
+                        "id": "user-2",
+                        "name": "Sam",
+                        "displayName": "Sam",
+                        "householdRole": "MEMBER",
+                    },
+                ]
+            }
+        }
+        result = await self.monarch_money.get_household_members()
+        mock_execute_async.assert_called_once()
+        self.assertIsNotNone(result, "Expected result to not be None")
+        users = result["myHousehold"]["users"]
+        self.assertEqual(len(users), 2, "Expected 2 household members")
+        self.assertEqual(users[0]["id"], "user-1")
+        self.assertEqual(users[0]["name"], "Alex")
+        self.assertEqual(users[0]["displayName"], "Alex")
+        self.assertEqual(users[0]["householdRole"], "OWNER")
+        self.assertEqual(users[1]["id"], "user-2")
+        self.assertEqual(users[1]["householdRole"], "MEMBER")
+
+    @patch.object(Client, "execute_async")
+    async def test_get_household_members_empty(self, mock_execute_async):
+        """
+        Test the get_household_members method with no members.
+        """
+        mock_execute_async.return_value = {"myHousehold": {"users": []}}
+        result = await self.monarch_money.get_household_members()
+        mock_execute_async.assert_called_once()
+        self.assertEqual(result["myHousehold"]["users"], [])
+
     async def test_login(self):
         """
         Test the login method with empty values for email and password.
@@ -316,6 +361,41 @@ class TestMonarchMoney(unittest.IsolatedAsyncioTestCase):
             kwargs["variable_values"]["filters"]["needsReview"],
             "Expected needsReview filter to be True",
         )
+
+    @patch.object(Client, "execute_async")
+    async def test_update_transaction_owner(self, mock_execute_async):
+        """Assign a household member or explicitly restore Shared ownership."""
+        for owner_user_id, expected in (("user-1", "user-1"), ("", None)):
+            with self.subTest(owner_user_id=owner_user_id):
+                mock_execute_async.reset_mock()
+                await self.monarch_money.update_transaction(
+                    "txn-1", owner_user_id=owner_user_id
+                )
+                mock_execute_async.assert_called_once()
+                self.assertEqual(
+                    mock_execute_async.call_args.kwargs["variable_values"]["input"],
+                    {
+                        "id": "txn-1",
+                        "category": None,
+                        "name": None,
+                        "ownerUserId": expected,
+                    },
+                )
+
+    @patch.object(Client, "execute_async")
+    async def test_update_transaction_preserves_owner(self, mock_execute_async):
+        """Omitted or None ownership must not turn a category edit into Shared."""
+        for kwargs in ({}, {"owner_user_id": None}):
+            with self.subTest(kwargs=kwargs):
+                mock_execute_async.reset_mock()
+                await self.monarch_money.update_transaction(
+                    "txn-1", category_id="cat-1", **kwargs
+                )
+                mock_execute_async.assert_called_once()
+                self.assertEqual(
+                    mock_execute_async.call_args.kwargs["variable_values"]["input"],
+                    {"id": "txn-1", "category": "cat-1", "name": None},
+                )
 
     @patch("builtins.input", return_value="")
     @patch("getpass.getpass", return_value="")

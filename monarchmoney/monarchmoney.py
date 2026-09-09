@@ -1507,6 +1507,32 @@ class MonarchMoney(object):
             variables=variables,
         )
 
+    async def get_household_members(self) -> Dict[str, Any]:
+        """
+        Gets household member IDs, names, display names, and roles.
+
+        Returns myHousehold.users with each member's id, name, displayName,
+        and householdRole. Pending invitations are not household members.
+        """
+        query = gql(
+            """
+          query Common_GetHouseHoldMemberSettings {
+            myHousehold {
+              users {
+                id
+                name
+                displayName
+                householdRole
+              }
+            }
+          }
+        """
+        )
+        return await self.gql_call(
+            operation="Common_GetHouseHoldMemberSettings",
+            graphql_query=query,
+        )
+
     async def get_subscription_details(self) -> Dict[str, Any]:
         """
         The type of subscription for the Monarch Money account.
@@ -2622,6 +2648,7 @@ class MonarchMoney(object):
         needs_review: Optional[bool] = None,
         reviewed: Optional[bool] = None,
         notes: Optional[str] = None,
+        owner_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Updates a single existing transaction as identified by the transaction_id
@@ -2657,6 +2684,8 @@ class MonarchMoney(object):
             status from a transaction, use needs_review=True.
         - notes: This parameter is only needed when the user wants to change
             the existing note.  An empty string can be passed to clear out existing notes.
+        - owner_user_id: Member ID from get_household_members() to assign as owner.
+            An empty string sets ownership to Shared. None leaves ownership unchanged.
 
         Examples:
         - To update a note: mm.update_transaction(
@@ -2772,6 +2801,8 @@ class MonarchMoney(object):
             variables["input"].update({"goalId": goal_id})
         if notes is not None:
             variables["input"].update({"notes": notes})
+        if owner_user_id is not None:
+            variables["input"].update({"ownerUserId": owner_user_id or None})
 
         return await self.gql_call(
             operation="Web_TransactionDrawerUpdateTransaction",

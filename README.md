@@ -186,6 +186,10 @@ As of writing this README, the following methods are supported:
       <td>all category groups configured in the account</td>
     </tr>
     <tr>
+      <td><code>get_household_members</code></td>
+      <td>gets household member IDs, names, display names, and roles</td>
+    </tr>
+    <tr>
       <td><code>get_transaction_details</code></td>
       <td>gets detailed transaction data for a single transaction</td>
     </tr>
